@@ -74,11 +74,11 @@ if lines:
 " "$SERVER_URL" "$PROJECT_NAME" 2>/dev/null || echo "")
 
 if [[ -n "$MEMORIES" ]]; then
-  MSG="[OpenViking memory context for subagent]
+  MSG="[OpenViking memory context]
 ${MEMORIES}
 Use MCP tools (search, overview, read) if you need deeper historical context."
   json_msg=$(_json_encode_str "$MSG")
-  echo "{\"systemMessage\": $json_msg}"
+  echo "{\"hookSpecificOutput\": {\"hookEventName\": \"SubagentStart\", \"additionalContext\": $json_msg}}"
 else
   echo '{}'
 fi
