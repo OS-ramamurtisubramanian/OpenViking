@@ -13,12 +13,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
-STATE_DIR="$PROJECT_DIR/.openviking/memory"
+# Global state and config — shared across all projects
+STATE_DIR="$HOME/.openviking/memory"
 STATE_FILE="$STATE_DIR/session_state.json"
-OV_CONF="$PROJECT_DIR/ov.conf"
+# Fallback: project ov.conf → global ~/.openviking/ov.conf
+if [[ -f "$PROJECT_DIR/ov.conf" ]]; then
+  OV_CONF="$PROJECT_DIR/ov.conf"
+else
+  OV_CONF="$HOME/.openviking/ov.conf"
+fi
 BRIDGE="$PLUGIN_ROOT/scripts/ov_memory.py"
 
-if command -v python3 >/dev/null 2>&1; then
+# Use OpenViking venv Python (has openviking package installed)
+OV_PYTHON="$HOME/.openviking/venv/bin/python"
+if [[ -x "$OV_PYTHON" ]]; then
+  PYTHON_BIN="$OV_PYTHON"
+elif command -v python3 >/dev/null 2>&1; then
   PYTHON_BIN="python3"
 elif command -v python >/dev/null 2>&1; then
   PYTHON_BIN="python"

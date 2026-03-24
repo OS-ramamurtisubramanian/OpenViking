@@ -250,6 +250,38 @@ def _assistant_chunks(entry: Dict[str, Any]) -> List[str]:
     return chunks
 
 
+def _resolve_ov_conf(project_dir: Path) -> Path:
+    """Resolve ov.conf: project-local first, then global fallback."""
+    local = project_dir / "ov.conf"
+    if local.exists():
+        return local
+    global_conf = Path.home() / ".openviking" / "ov.conf"
+    if global_conf.exists():
+        return global_conf
+    return local  # Return local path (will fail with clear error)
+
+
+def _read_tail_lines(path: Path, max_bytes: int = 128 * 1024) -> List[Dict[str, Any]]:
+    """Read JSONL lines from the tail of a file. O(1) seek for large files."""
+    file_size = path.stat().st_size
+    read_from = max(0, file_size - max_bytes)
+
+    rows: List[Dict[str, Any]] = []
+    with open(path, "rb") as f:
+        f.seek(read_from)
+        if read_from > 0:
+            # Skip partial first line after seek
+            f.readline()
+        for raw_line in f:
+            try:
+                obj = json.loads(raw_line)
+                if isinstance(obj, dict):
+                    rows.append(obj)
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+    return rows
+
+
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     with open(path, "r", encoding="utf-8") as f:
@@ -267,7 +299,7 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
 
 
 def extract_last_turn(transcript_path: Path) -> Optional[Dict[str, str]]:
-    rows = _read_jsonl(transcript_path)
+    rows = _read_tail_lines(transcript_path)
     if not rows:
         return None
 
@@ -431,7 +463,7 @@ def _build_backend_from_state_or_detect(
 
 def cmd_session_start(args: argparse.Namespace) -> Dict[str, Any]:
     project_dir = Path(args.project_dir).resolve()
-    ov_conf_path = project_dir / "ov.conf"
+    ov_conf_path = _resolve_ov_conf(project_dir)
     state_file = Path(args.state_file)
 
     if not ov_conf_path.exists():
@@ -485,7 +517,7 @@ def cmd_session_start(args: argparse.Namespace) -> Dict[str, Any]:
 
 def cmd_ingest_stop(args: argparse.Namespace) -> Dict[str, Any]:
     project_dir = Path(args.project_dir).resolve()
-    ov_conf_path = project_dir / "ov.conf"
+    ov_conf_path = _resolve_ov_conf(project_dir)
     state_file = Path(args.state_file)
     transcript = Path(args.transcript_path)
 
@@ -545,7 +577,7 @@ def cmd_ingest_stop(args: argparse.Namespace) -> Dict[str, Any]:
 
 def cmd_session_end(args: argparse.Namespace) -> Dict[str, Any]:
     project_dir = Path(args.project_dir).resolve()
-    ov_conf_path = project_dir / "ov.conf"
+    ov_conf_path = _resolve_ov_conf(project_dir)
     state_file = Path(args.state_file)
 
     state = _load_state(state_file)
@@ -592,7 +624,7 @@ def cmd_session_end(args: argparse.Namespace) -> Dict[str, Any]:
 
 def cmd_recall(args: argparse.Namespace) -> int:
     project_dir = Path(args.project_dir).resolve()
-    ov_conf_path = project_dir / "ov.conf"
+    ov_conf_path = _resolve_ov_conf(project_dir)
     state_file = Path(args.state_file)
     query = _as_text(args.query)
 
