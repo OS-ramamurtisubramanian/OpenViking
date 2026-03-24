@@ -13,17 +13,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 
-# Global state and config — shared across all projects
-STATE_DIR="$HOME/.openviking/memory"
-STATE_FILE="$STATE_DIR/session_state.json"
-# Fallback: project ov.conf → global ~/.openviking/ov.conf
-if [[ -f "$PROJECT_DIR/ov.conf" ]]; then
-  OV_CONF="$PROJECT_DIR/ov.conf"
-else
-  OV_CONF="$HOME/.openviking/ov.conf"
-fi
-BRIDGE="$PLUGIN_ROOT/scripts/ov_memory.py"
-
 # Use OpenViking venv Python (has openviking package installed)
 OV_PYTHON="$HOME/.openviking/venv/bin/python"
 if [[ -x "$OV_PYTHON" ]]; then
@@ -35,6 +24,28 @@ elif command -v python >/dev/null 2>&1; then
 else
   PYTHON_BIN=""
 fi
+
+# Extract Claude session ID from hook input for per-session state file
+CLAUDE_SID=""
+if [[ -n "$INPUT" && -n "$PYTHON_BIN" ]]; then
+  CLAUDE_SID=$("$PYTHON_BIN" -c "import json,sys; print(json.loads(sys.argv[1]).get('session_id',''))" "$INPUT" 2>/dev/null || echo "")
+fi
+
+# Per-session state file — prevents concurrent sessions from clobbering each other
+STATE_DIR="$HOME/.openviking/memory"
+if [[ -n "$CLAUDE_SID" ]]; then
+  STATE_FILE="$STATE_DIR/session_${CLAUDE_SID}.json"
+else
+  STATE_FILE="$STATE_DIR/session_state.json"
+fi
+
+# Fallback: project ov.conf → global ~/.openviking/ov.conf
+if [[ -f "$PROJECT_DIR/ov.conf" ]]; then
+  OV_CONF="$PROJECT_DIR/ov.conf"
+else
+  OV_CONF="$HOME/.openviking/ov.conf"
+fi
+BRIDGE="$PLUGIN_ROOT/scripts/ov_memory.py"
 
 _json_val() {
   local json="$1" key="$2" default="${3:-}"
